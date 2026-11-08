@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
 Merges the 6 sports XMLTV feeds (UK, US, AU, NZ, ZA, BEIN) into a single,
-compact epg.xml.gz file.
+compact epg.xml.gz file, with comprehensive display-name aliases so auto-matchers
+(in JCTV, m3u4u, etc.) accurately match channels without greedy fallbacks.
 """
 import gzip
 import io
@@ -18,6 +19,86 @@ FEEDS = [
     ("ZA", "https://epgshare01.online/epgshare01/epg_ripper_ZA1.xml.gz"),
     ("BEIN", "https://epgshare01.online/epgshare01/epg_ripper_BEIN1.xml.gz"),
 ]
+
+# Raw UK EPG abbreviates Sky Sports as 'SkySp' which causes auto-matchers
+# to latch onto the only fully-spelled channel: Sky Sports NFL.
+# Adding standard full names & common IPTV aliases fixes auto-matching everywhere.
+NAME_ALIASES = {
+    "SkySpMainEvHD.uk": [
+        "Sky Sports Main Event", "Sky Sports Main Event HD", "Sky Sports Main Event FHD",
+        "Sky Sports Main Events", "Sky Sports Main Events UHD", "Sky Sports Main Event UHD"
+    ],
+    "SkySp.PL.HD.uk": [
+        "Sky Sports Premier League", "Sky Sports PL", "Sky Sports PL HD",
+        "Sky Sports PL FHD", "Sky Sports PL UHD", "Sky Sports Premier League HD"
+    ],
+    "SkySp.Fball.HD.uk": [
+        "Sky Sports Football", "Sky Sports Football HD", "Sky Sports Football FHD", "Sky Sports Football UHD"
+    ],
+    "SkySp.Fball.uk": [
+        "Sky Sports Football", "Sky Sports Football SD"
+    ],
+    "SkySp.F1.HD.uk": [
+        "Sky Sports F1", "Sky Sports Formula 1", "Sky Sports F1 HD", "Sky Sports F1 FHD", "Sky Sports F1 UHD"
+    ],
+    "SkySp.F1.uk": [
+        "Sky Sports F1", "Sky Sports Formula 1"
+    ],
+    "SkySpCricket.HD.uk": [
+        "Sky Sports Cricket", "Sky Sports Cricket HD", "Sky Sports Cricket FHD", "Sky Sports Cricket UHD"
+    ],
+    "SkySp.Cricket.uk": [
+        "Sky Sports Cricket"
+    ],
+    "SkySp.Golf.HD.uk": [
+        "Sky Sports Golf", "Sky Sports Golf HD", "Sky Sports Golf FHD", "Sky Sports Golf UHD"
+    ],
+    "SkySp.Golf.uk": [
+        "Sky Sports Golf"
+    ],
+    "SkySp.ActionHD.uk": [
+        "Sky Sports Action", "Sky Sports Action HD", "Sky Sports Action FHD", "Sky Sports Action UHD"
+    ],
+    "SkySp.Action.uk": [
+        "Sky Sports Action"
+    ],
+    "SkySp.News.HD.uk": [
+        "Sky Sports News", "Sky Sports News HD", "Sky Sports News FHD", "Sky Sports News UHD"
+    ],
+    "SkySp.Racing.HD.uk": [
+        "Sky Sports Racing", "Sky Sports Racing HD", "Sky Sports Racing FHD", "Sky Sports Racing UHD"
+    ],
+    "SkySp.Racing.uk": [
+        "Sky Sports Racing"
+    ],
+    "SkySp.Mix.HD.uk": [
+        "Sky Sports Mix", "Sky Sports Mix HD", "Sky Sports Mix FHD"
+    ],
+    "SkySp.Tennis.HD.uk": [
+        "Sky Sports Tennis", "Sky Sports Tennis HD", "Sky Sports Tennis FHD", "Sky Sports Tennis UHD"
+    ],
+    "SkySp+HD.uk": [
+        "Sky Sports+", "Sky Sports+ HD", "Sky Sports Plus", "Sky Sports+ FHD"
+    ],
+    "SkySp+.uk": [
+        "Sky Sports+", "Sky Sports Plus"
+    ],
+    "TNT.Sports.1.HD.uk": [
+        "TNT Sports 1", "TNT Sports 1 HD", "TNT Sports 1 FHD", "TNT Sports 1 UHD"
+    ],
+    "TNT.Sports.2.HD.uk": [
+        "TNT Sports 2", "TNT Sports 2 HD", "TNT Sports 2 FHD", "TNT Sports 2 UHD"
+    ],
+    "TNT.Sports.3.HD.uk": [
+        "TNT Sports 3", "TNT Sports 3 HD", "TNT Sports 3 FHD", "TNT Sports 3 UHD"
+    ],
+    "TNT.Sports.4.HD.uk": [
+        "TNT Sports 4", "TNT Sports 4 HD", "TNT Sports 4 FHD", "TNT Sports 4 UHD"
+    ],
+    "TNT.Sports.Ultimate.HD.uk": [
+        "TNT Sports Ultimate", "TNT Sport Ultimate", "TNT Sports Ultimate HD", "TNT Sports Ultimate UHD"
+    ],
+}
 
 OUTPUT_FILE = sys.argv[1] if len(sys.argv) > 1 else "epg.xml.gz"
 
@@ -46,6 +127,16 @@ def main():
                 ch_id = ch.get('id')
                 if ch_id and ch_id not in seen_channel_ids:
                     seen_channel_ids.add(ch_id)
+                    
+                    # Add aliases if this channel has known abbreviation issues
+                    if ch_id in NAME_ALIASES:
+                        existing_names = {dn.text for dn in ch.findall('display-name') if dn.text}
+                        for alias in NAME_ALIASES[ch_id]:
+                            if alias not in existing_names:
+                                dn_el = ET.Element('display-name')
+                                dn_el.text = alias
+                                ch.insert(0, dn_el)
+                    
                     channels_xml.append(ET.tostring(ch, encoding='utf-8').decode('utf-8'))
                     count_ch += 1
 
